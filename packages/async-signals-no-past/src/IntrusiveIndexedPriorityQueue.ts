@@ -166,7 +166,7 @@ export class IntrusiveIndexedPriorityQueue<
     }
   }
 
-  private remove(a: A) {
+  remove(a: A) {
     if (!a.inPq) {
       return;
     }
