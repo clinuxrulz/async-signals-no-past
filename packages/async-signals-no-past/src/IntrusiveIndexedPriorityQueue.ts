@@ -3,13 +3,17 @@ const SANITY_CHECKS = false;
 
 export const EFFECT_QUEUE_RANK = "EffectQueue";
 
+export type PqRank = number | (typeof EFFECT_QUEUE_RANK);
+
+export type ElementInterface<A> = {
+  pqRank: PqRank,
+  inPq: boolean,
+  pqPrev: A | null,
+  pqNext: A | null,
+};
+
 export class IntrusiveIndexedPriorityQueue<
-  A extends {
-    pqRank: number | (typeof EFFECT_QUEUE_RANK),
-    inPq: boolean,
-    pqPrev: A | null,
-    pqNext: A | null,
-  }
+  A extends ElementInterface<A>
 > {
   private entries: {
     head: A | null,
