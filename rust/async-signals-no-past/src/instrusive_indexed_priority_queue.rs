@@ -10,7 +10,7 @@ pub struct PqElementData {
     pub pq_rank: PqRank,
     pub in_pq: bool,
     pub pq_prev: Weak<dyn PqElement>,
-    pub pq_next: Weak<dyn PqElement>,
+    pub pq_next: Rc<dyn PqElement>,
 }
 
 pub trait PqElement {
@@ -18,8 +18,8 @@ pub trait PqElement {
 }
 
 struct Entry<A> where A: PqElement {
-  head: Option<Weak<A>>,
-  tail: Option<Weak<A>>,
+  head: Option<Rc<A>>,
+  tail: Option<Rc<A>>,
 }
 
 pub struct InstrusiveIndexedPriorityQueue<A> where A: PqElement {
