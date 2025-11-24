@@ -110,27 +110,72 @@ impl<A: PqElement + 'static> InstrusiveIndexedPriorityQueue<A> {
             }
             let result = Rc::clone(entry.unwrap().head.as_ref().unwrap());
             self.remove(&result);
-            // TODO
-            /*
-            while (true) {
-              entry = this.entries[this.minRank];
-              if (entry == undefined || entry.head == null) {
-                this.minRank++;
-                if (this.minRank > this.maxRank) {
-                  this.minRank = 0;
-                  this.maxRank = -1;
-                  break;
+            loop {
+                let entry = self.entries.get_mut(self.min_rank as usize);
+                if entry.is_none() || entry.as_ref().unwrap().head.is_none() {
+                    self.min_rank += 1;
+                    if self.min_rank > self.max_rank {
+                        self.min_rank = 0;
+                        self.max_rank = -1;
+                        break;
+                    }
                 }
-                continue;
-              }
-              break;
+                break;
             }
-            */
             return Some(result);
         }
     }
 
     pub fn remove(&mut self, a: &Rc<A>) {
+        let a2 = a.pq_element_data();
+        let mut a2 = a2.borrow_mut();
+        if !a2.in_pq {
+            return;
+        }
+        a2.in_pq = true;
+        let entry: &mut Entry<A>;
+        match a2.pq_rank {
+            PqRank::Pure(rank) => {
+                entry = &mut self.entries[rank as usize];
+            },
+            PqRank::Effect => {
+                entry = &mut self.last;
+            }
+        }
+        if a2.pq_prev.is_some() {
+            a2.pq_prev
+                .as_ref()
+                .unwrap()
+                .upgrade()
+                .unwrap()
+                .pq_element_data()
+                .borrow_mut()
+                .pq_next = a2.pq_next.as_ref().map(|x| Rc::clone(x));
+        }
+        if a2.pq_next.is_some() {
+            a2.pq_next
+                .as_ref()
+                .unwrap()
+                .pq_element_data()
+                .borrow_mut()
+                .pq_prev = a2.pq_prev.as_ref().map(|x| Weak::clone(x));
+        }
+        if entry.head.is_some() && Rc::ptr_eq(entry.head.as_ref().unwrap(), a) {
+            entry.head = a2.pq_next.as_ref().map(|x| Rc::clone(x));
+        }
+        if entry.tail.is_some() && Rc::ptr_eq(entry.tail.as_ref().unwrap(), a) {
+            entry.tail = a2.pq_prev.as_ref().map(|x| x.upgrade().unwrap());
+        }
+        if entry.head.is_none() {
+            entry.tail = None;
+        }
+        a2.pq_next = None;
+        a2.pq_prev = None;
+    }
 
+    fn change_rank(&mut self, a: &Rc<A>, new_rank: PqRank) {
+        self.remove(&a);
+        a.pq_element_data().borrow_mut().pq_rank = new_rank;
+        self.enqueue(Rc::clone(a));
     }
 }
