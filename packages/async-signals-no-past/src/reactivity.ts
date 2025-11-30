@@ -70,6 +70,124 @@ export class Node implements ElementInterface<Node> {
 }
 
 export const priorityQueue = new IntrusiveIndexedPriorityQueue<Node>();
+export let owner: Node | undefined = undefined;
+export let observer: Node | undefined = undefined;
+
+function withOwner<A>(innerOwner: Node, k: () => A): A {
+  let outerOwner = owner;
+  let result: A;
+  try {
+    owner = innerOwner;
+    result = k();
+  } finally {
+    owner = outerOwner;
+  }
+  return result;
+}
+
+function withObserver<A>(innerObserver: Node, k: () => A): A {
+  let outerObserver = observer;
+  let result: A;
+  try {
+    observer = innerObserver;
+    result = k();
+  } finally {
+    observer = outerObserver;
+  }
+  return result;
+}
+
+function withOwnerAndObserver<A>(innerOwnerAndObserver: Node, k: () => A): A {
+  let outerOwner = owner;
+  let outerObserver = observer;
+  let result: A;
+  try {
+    owner = innerOwnerAndObserver;
+    observer = innerOwnerAndObserver;
+    result = k();
+  } finally {
+    owner = outerOwner;
+    observer = outerObserver;
+  }
+  return result;
+}
+
+export type Accessor<A> = () => A;
+export type Setter<A> = (x: A) => void;
+export type Signal<A> = [ Accessor<A>, Setter<A>, ];
+
+let requestFlush = (() => {
+  let aboutToFlush = false;
+  return () => {
+    if (aboutToFlush) {
+      return;
+    }
+    aboutToFlush = true;
+    queueMicrotask(() => {
+      aboutToFlush = false;
+      flush();
+    });
+  };
+})();
+
+function flush() {
+  while (true) {
+    let node = priorityQueue.dequeue();
+    if (node == undefined) {
+      break;
+    }
+    let result = node.update();
+    if (result == NodeUpdateResult.FIRE) {
+      for (let sub = node.subs; sub != null; sub = sub.nextSub) {
+        priorityQueue.enqueue(sub.sub);
+      }
+    }
+  }
+}
+
+export function createSignal<A>(a: A): Signal<A> {
+  let value: A = a;
+  let node = new Node(() => NodeUpdateResult.FIRE);
+  let accessor: Accessor<A> = () => {
+    if (observer != undefined) {
+      link(node, observer);
+    }
+    return value;
+  };
+  let setter: Setter<A> = (x: A) => {
+    value = x;
+    priorityQueue.enqueue(node);
+    requestFlush();
+  };
+  return [ accessor, setter, ];
+}
+
+export function createMemo<A>(fn: () => A): Accessor<A> {
+  let updateFn: () => A;
+  let node = new Node(() => {
+    let newValue = updateFn();
+    return (newValue === value) ? NodeUpdateResult.SEIZE_FIRE : NodeUpdateResult.FIRE;
+  });
+  updateFn = () => withOwnerAndObserver(node, () => {
+    while (node.deps != null) {
+      node.deps = unlinkSubs(node.deps);
+    }
+    node.depsTail = null;
+    return fn();
+  });
+  let value: A = updateFn();
+  return () => {
+    if (observer != undefined) {
+      if (typeof observer.pqRank == "number") {
+        if (typeof node.pqRank == "number") {
+          observer.pqRank = Math.max(observer.pqRank, node.pqRank + 1);
+        }
+      }
+      link(node, observer);
+    }
+    return value;
+  };
+}
 
 function unlinkSubs(link: Link): Link | null {
   const dep = link.dep;

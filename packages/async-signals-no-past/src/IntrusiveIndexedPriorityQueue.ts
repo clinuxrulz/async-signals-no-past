@@ -65,9 +65,6 @@ export class IntrusiveIndexedPriorityQueue<
   }
 
   enqueue(a: A) {
-    if (a.pqRank != (a as any).rank.rank) {
-      throw new Error("PQ");
-    }
     if (a.inPq) {
       return;
     }
