@@ -166,7 +166,9 @@ export function createMemo<A>(fn: () => A): Accessor<A> {
   let updateFn: () => A;
   let node = new Node(() => {
     let newValue = updateFn();
-    return (newValue === value) ? NodeUpdateResult.SEIZE_FIRE : NodeUpdateResult.FIRE;
+    let result = (newValue === value) ? NodeUpdateResult.SEIZE_FIRE : NodeUpdateResult.FIRE;
+    value = newValue;
+    return result;
   });
   updateFn = () => withOwnerAndObserver(node, () => {
     while (node.deps != null) {
