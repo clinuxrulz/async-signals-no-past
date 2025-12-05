@@ -136,11 +136,34 @@ function flush() {
     if (node == undefined) {
       break;
     }
+    let oldRank = node.pqRank;
     let result = node.update();
+    let newRank = node.pqRank;
+    if (typeof oldRank === "number" && typeof newRank === "number") {
+      if (newRank > oldRank) {
+        fixRanksOfSubs(node);
+      }
+    }
     if (result == NodeUpdateResult.FIRE) {
       for (let sub = node.subs; sub != null; sub = sub.nextSub) {
         priorityQueue.enqueue(sub.sub);
       }
+    }
+  }
+}
+
+function fixRanksOfSubs(node: Node) {
+  let rank = node.pqRank;
+  if (typeof rank !== "number") {
+    return;
+  }
+  for (let sub = node.subs; sub != null; sub = sub.nextSub) {
+    if (typeof sub.sub.pqRank !== "number") {
+      continue;
+    }
+    if (sub.sub.pqRank <= rank) {
+      sub.sub.pqRank = rank + 1;
+      fixRanksOfSubs(sub.sub);
     }
   }
 }
