@@ -188,7 +188,13 @@ function flush() {
   }
   atRank = undefined;
   // clear out fallback heap
-  while (fallbackHeap.pop() != undefined) {}
+  while (true) {
+    let node = fallbackHeap.pop();
+    if (node == undefined) {
+      break;
+    }
+    node.flags &= ~ReactiveFlags.Dirty;
+  }
 }
 
 export function createSignal<A>(a: A): Signal<A> {
