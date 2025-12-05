@@ -1,4 +1,5 @@
-import { ElementInterface, IntrusiveIndexedPriorityQueue, PqRank } from "./IntrusiveIndexedPriorityQueue";
+import { FallbackHeap, IntrusiveFallbackHeapElement } from "./IntrusiveFallbackHeap";
+import { InstrusivePriorityQueueElement, IntrusiveIndexedPriorityQueue, PqRank } from "./IntrusiveIndexedPriorityQueue";
 
 const enum ReactiveFlags {
   None = 0,
@@ -23,7 +24,10 @@ export interface Link {
   nextSub: Link | null;
 }
 
-export class Node implements ElementInterface<Node> {
+export class Node implements
+  InstrusivePriorityQueueElement<Node>,
+  IntrusiveFallbackHeapElement<Node>
+{
   flags: ReactiveFlags = ReactiveFlags.None;
   pqRank: PqRank = 0;
 
@@ -37,9 +41,45 @@ export class Node implements ElementInterface<Node> {
       this.flags &= ~ReactiveFlags.InHeap;
     }
   }
+  get pqPrev(): Node | null {
+    return this.prev;
+  }
+  set pqPrev(x: Node | null) {
+    this.prev = x;
+  }
+  get pqNext(): Node | null {
+    return this.next;
+  }
+  set pqNext(x: Node | null) {
+    this.next = x;
+  }
 
-  pqPrev: Node | null = null;
-  pqNext: Node | null = null;
+  get inFallbackHeap(): boolean {
+    return (this.flags & ReactiveFlags.InFallbackHeap) != 0;
+  }
+  set inFallbackHeap(x: boolean) {
+    if (x) {
+      this.flags |= ReactiveFlags.InFallbackHeap;
+    } else {
+      this.flags &= ~ReactiveFlags.InFallbackHeap;
+    }
+  }
+
+  get fhPrev(): Node | null {
+    return this.prev;
+  }
+  set fhPrev(x: Node | null) {
+    this.prev = x;
+  }
+  get fhNext(): Node | null {
+    return this.next;
+  }
+  set fhNext(x: Node | null) {
+    this.next = x;
+  }
+
+  prev: Node | null = null;
+  next: Node | null = null;
   subs: Link | null = null;
   subsTail: Link | null = null;
   deps: Link | null = null;
@@ -70,8 +110,10 @@ export class Node implements ElementInterface<Node> {
 }
 
 export const priorityQueue = new IntrusiveIndexedPriorityQueue<Node>();
+export const fallbackHeap = new FallbackHeap<Node>();
 export let owner: Node | undefined = undefined;
 export let observer: Node | undefined = undefined;
+export let atRank: PqRank | undefined = undefined;
 
 function withOwner<A>(innerOwner: Node, k: () => A): A {
   let outerOwner = owner;
@@ -136,36 +178,15 @@ function flush() {
     if (node == undefined) {
       break;
     }
-    let oldRank = node.pqRank;
+    atRank = node.pqRank;
     let result = node.update();
-    let newRank = node.pqRank;
-    if (typeof oldRank === "number" && typeof newRank === "number") {
-      if (newRank > oldRank) {
-        fixRanksOfSubs(node);
-      }
-    }
     if (result == NodeUpdateResult.FIRE) {
       for (let sub = node.subs; sub != null; sub = sub.nextSub) {
         priorityQueue.enqueue(sub.sub);
       }
     }
   }
-}
-
-function fixRanksOfSubs(node: Node) {
-  let rank = node.pqRank;
-  if (typeof rank !== "number") {
-    return;
-  }
-  for (let sub = node.subs; sub != null; sub = sub.nextSub) {
-    if (typeof sub.sub.pqRank !== "number") {
-      continue;
-    }
-    if (sub.sub.pqRank <= rank) {
-      sub.sub.pqRank = rank + 1;
-      fixRanksOfSubs(sub.sub);
-    }
-  }
+  atRank = undefined;
 }
 
 export function createSignal<A>(a: A): Signal<A> {

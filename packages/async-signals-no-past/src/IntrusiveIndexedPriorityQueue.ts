@@ -5,7 +5,7 @@ export const EFFECT_QUEUE_RANK = "EffectQueue";
 
 export type PqRank = number | (typeof EFFECT_QUEUE_RANK);
 
-export type ElementInterface<A> = {
+export type InstrusivePriorityQueueElement<A> = {
   pqRank: PqRank,
   inPq: boolean,
   pqPrev: A | null,
@@ -13,7 +13,7 @@ export type ElementInterface<A> = {
 };
 
 export class IntrusiveIndexedPriorityQueue<
-  A extends ElementInterface<A>
+  A extends InstrusivePriorityQueueElement<A>
 > {
   private entries: {
     head: A | null,
