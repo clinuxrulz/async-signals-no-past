@@ -1,6 +1,4 @@
 export interface IntrusiveLinkedListElement<A> {
-  inLinkedList: (self: A) => boolean,
-  setInLinkedList: (self: A, x: boolean) => void,
   prev: (self: A) => A | undefined,
   setPrev: (self: A, x: A | undefined) => void,
   next: (self: A) => A | undefined,
@@ -21,10 +19,6 @@ export class IntrusiveLinkedList<A> {
   }
 
   add(a: A) {
-    if (this.elementImpl.inLinkedList(a)) {
-      return;
-    }
-    this.elementImpl.setInLinkedList(a, true);
     if (this.head === undefined) {
       this.head = this.tail = a;
       return;
@@ -35,10 +29,6 @@ export class IntrusiveLinkedList<A> {
   }
 
   remove(a: A) {
-    if (!this.elementImpl.inLinkedList(a)) {
-      return;
-    }
-    this.elementImpl.setInLinkedList(a, false);
     if (this.elementImpl.prev(a) === undefined) {
       this.head = this.elementImpl.next(this.head!);
       if (this.head !== undefined) {
