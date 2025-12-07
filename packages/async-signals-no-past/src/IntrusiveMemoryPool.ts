@@ -35,6 +35,7 @@ export class IntrusiveMemoryPool<A> {
     if (this.head == undefined) {
       this.tail = undefined;
     }
+    this.itemImpl.setNext(result, undefined);
     return result;
   }
 
