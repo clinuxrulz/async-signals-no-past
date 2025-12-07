@@ -1,72 +1,83 @@
 import { IntrusiveLinkedList, IntrusiveLinkedListData, IntrusiveLinkedListElement } from "./IntrusiveLinkedList";
 
-export interface IntrusiveLinksNode<N,L> {
-  readonly deps: IntrusiveLinkedListData<N,L>;
-  readonly subs: IntrusiveLinkedListData<N,L>;
+export interface Link<N> {
+  dep: N;
+  sub: N;
+  prevDep: Link<N> | undefined;
+  nextDep: Link<N> | undefined;
+  prevSub: Link<N> | undefined;
+  nextSub: Link<N> | undefined;
 }
 
-export interface IntrusiveLinksLink<Self,N> {
-  depsElementImpl(self: Self): IntrusiveLinkedListElement<Self>;
-  subsElementImpl(self: Self): IntrusiveLinkedListElement<Self>;
-  dep(self: Self): N;
-  sub(self: Self): N;
+let depsElementImplAnyN: IntrusiveLinkedListElement<Link<any>> = {
+  prev(self) {
+    return self.prevDep;
+  },
+  setPrev(self, x) {
+    self.prevDep = x;  
+  },
+  next(self) {
+    return self.nextDep;
+  },
+  setNext(self, x) {
+    self.nextDep = x;
+  },
+};
+
+function depsElementImpl<N>(): IntrusiveLinkedListElement<Link<N>> {
+  return depsElementImplAnyN as unknown as IntrusiveLinkedListElement<Link<N>>;
 }
 
-export class InstrusiveLinksGraph<N,L> {
-  nodeImpl: IntrusiveLinksNode<N,L>;
-  linkImpl: IntrusiveLinksLink<L,N>;
-  depsLinkListImpl: IntrusiveLinkedList<N,L>;
-  subsLinkListImpl: IntrusiveLinkedList<N,L>;
+let subsElementImplAnyN: IntrusiveLinkedListElement<Link<any>> = {
+  prev(self) {
+    return self.prevSub;
+  },
+  setPrev(self, x) {
+    self.prevSub = x;  
+  },
+  next(self) {
+    return self.nextSub;
+  },
+  setNext(self, x) {
+    self.nextSub = x;
+  },
+};
 
+function subsElementImpl<N>(): IntrusiveLinkedListElement<Link<N>> {
+  return subsElementImplAnyN as unknown as IntrusiveLinkedListElement<Link<N>>;
+}
+
+export interface IntrusiveLinksNode<N> {
+  readonly deps: IntrusiveLinkedListData<N,Link<N>>;
+  readonly subs: IntrusiveLinkedListData<N,Link<N>>;
+}
+
+export class IntrusiveLinksGraph<N> {
+  nodeImpl: IntrusiveLinksNode<N>;
+  depsImpl: IntrusiveLinkedList<N,Link<N>>;
+  subsImpl: IntrusiveLinkedList<N,Link<N>>;
   constructor(
-    nodeImpl: IntrusiveLinksNode<N,L>,
-    linkImpl: IntrusiveLinksLink<L,N>,
+    nodeImpl: IntrusiveLinksNode<N>,
   ) {
     this.nodeImpl = nodeImpl;
-    this.linkImpl = linkImpl;
-    this.depsLinkListImpl = new IntrusiveLinkedList<N,L>(
+    this.depsImpl = new IntrusiveLinkedList(
       nodeImpl.deps,
-      {
-        prev(self) {
-          return linkImpl.depsElementImpl(self).prev(self);
-        },
-        setPrev(self, x) {
-          linkImpl.depsElementImpl(self).setPrev(self, x);
-        },
-        next(self) {
-          return linkImpl.depsElementImpl(self).next(self);
-        },
-        setNext(self, x) {
-          linkImpl.depsElementImpl(self).setNext(self, x);
-        },
-      },
+      depsElementImpl<N>(),
     );
-    this.subsLinkListImpl = new IntrusiveLinkedList<N,L>(
-      nodeImpl.deps,
-      {
-        prev(self) {
-          return linkImpl.depsElementImpl(self).prev(self);
-        },
-        setPrev(self, x) {
-          linkImpl.depsElementImpl(self).setPrev(self, x);
-        },
-        next(self) {
-          return linkImpl.depsElementImpl(self).next(self);
-        },
-        setNext(self, x) {
-          linkImpl.depsElementImpl(self).setNext(self, x);
-        },
-      },
+    this.subsImpl = new IntrusiveLinkedList(
+      nodeImpl.subs,
+      subsElementImpl<N>(),
     );
   }
 
-  addLink(link: L) {
-    this.depsLinkListImpl.add(this.linkImpl.sub(link), link);
-    this.subsLinkListImpl.add(this.linkImpl.dep(link), link);
+  addLink(link: Link<N>) {
+    this.depsImpl.add(link.sub, link);
+    this.subsImpl.add(link.dep, link);
   }
 
-  removeLink(link: L) {
-    this.depsLinkListImpl.remove(this.linkImpl.sub(link), link);
-    this.subsLinkListImpl.remove(this.linkImpl.dep(link), link);
+  removeLink(link: Link<N>) {
+    this.depsImpl.remove(link.sub, link);
+    this.subsImpl.remove(link.dep, link);
   }
 }
+
