@@ -1,5 +1,6 @@
 import { FallbackHeap, IntrusiveFallbackHeapElement } from "./IntrusiveFallbackHeap";
 import { InstrusivePriorityQueueElement, IntrusiveIndexedPriorityQueue, PqRank } from "./IntrusiveIndexedPriorityQueue";
+import { IntrusiveLinksGraph, Link } from "./IntrusiveLinksGraph";
 
 const enum ReactiveFlags {
   None = 0,
@@ -16,18 +17,7 @@ export enum NodeUpdateResult {
 
 export type NodeUpdateFn = () => NodeUpdateResult;
 
-export interface Link {
-  dep: Node;
-  sub: Node;
-  nextDep: Link | null;
-  prevSub: Link | null;
-  nextSub: Link | null;
-}
-
-export class Node implements
-  InstrusivePriorityQueueElement<Node>,
-  IntrusiveFallbackHeapElement<Node>
-{
+export class Node {
   flags: ReactiveFlags = ReactiveFlags.None;
   pqRank: PqRank = 0;
 
@@ -41,18 +31,6 @@ export class Node implements
       this.flags &= ~ReactiveFlags.InHeap;
     }
   }
-  get pqPrev(): Node | null {
-    return this.prev;
-  }
-  set pqPrev(x: Node | null) {
-    this.prev = x;
-  }
-  get pqNext(): Node | null {
-    return this.next;
-  }
-  set pqNext(x: Node | null) {
-    this.next = x;
-  }
 
   get inFallbackHeap(): boolean {
     return (this.flags & ReactiveFlags.InFallbackHeap) != 0;
@@ -65,25 +43,12 @@ export class Node implements
     }
   }
 
-  get fhPrev(): Node | null {
-    return this.prev;
-  }
-  set fhPrev(x: Node | null) {
-    this.prev = x;
-  }
-  get fhNext(): Node | null {
-    return this.next;
-  }
-  set fhNext(x: Node | null) {
-    this.next = x;
-  }
-
-  prev: Node | null = null;
-  next: Node | null = null;
-  subs: Link | null = null;
-  subsTail: Link | null = null;
-  deps: Link | null = null;
-  depsTail: Link | null = null;
+  prev: Node | undefined = undefined;
+  next: Node | undefined = undefined;
+  subs: Link<Node> | undefined = undefined;
+  subsTail: Link<Node> | undefined = undefined;
+  deps: Link<Node> | undefined = undefined;
+  depsTail: Link<Node> | undefined = undefined;
   disposal: (() => void) | (() => void)[] | null = null;
   update: NodeUpdateFn;
 
@@ -109,8 +74,86 @@ export class Node implements
   }
 }
 
-export const priorityQueue = new IntrusiveIndexedPriorityQueue<Node>();
-export const fallbackHeap = new FallbackHeap<Node>();
+export const priorityQueue = new IntrusiveIndexedPriorityQueue<Node>({
+  pqRank(self) {
+    return self.pqRank;
+  },
+  setPqRank(self, x) {
+    self.pqRank = x;
+  },
+  inPq(self) {
+    return (self.flags & ReactiveFlags.InHeap) != 0;
+  },
+  setInPq(self, x) {
+    if (x) {
+      self.flags |= ReactiveFlags.InHeap;
+    } else {
+      self.flags &= ~ReactiveFlags.InHeap;
+    }
+  },
+  prev(self) {
+    return self.prev;
+  },
+  setPrev(self, x) {
+    self.prev = x;
+  },
+  next(self) {
+    return self.next;
+  },
+  setNext(self, x) {
+    self.next = x;
+  },
+});
+export const fallbackHeap = new FallbackHeap<Node>({
+  inFallbackHeap(self) {
+    return self.inFallbackHeap;
+  },
+  setInFallbackHeap(self, x) {
+    self.inFallbackHeap = x;
+  },
+  prev(self) {
+    return self.prev;
+  },
+  setPrev(self, x) {
+    self.prev = x;
+  },
+  next(self) {
+    return self.next;
+  },
+  setNext(self, x) {
+    self.next = x;
+  },
+});
+export const linksGraph = new IntrusiveLinksGraph<Node>({
+  deps: {
+    head(self) {
+      return self.deps;
+    },
+    setHead(self, x) {
+      self.deps = x;
+    },
+    tail(self) {
+      return self.depsTail;
+    },
+    setTail(self, x) {
+      self.depsTail = x;
+    },
+  },
+  subs: {
+    head(self) {
+      return self.subs;
+    },
+    setHead(self, x) {
+      self.subs = x;
+    },
+    tail(self) {
+      return self.subsTail;
+    },
+    setTail(self, x) {
+      self.subsTail = x;
+    },
+  },
+});
 export let owner: Node | undefined = undefined;
 export let observer: Node | undefined = undefined;
 export let atRank: PqRank | undefined = undefined;
@@ -202,7 +245,7 @@ export function createSignal<A>(a: A): Signal<A> {
   let node = new Node(() => NodeUpdateResult.FIRE);
   let accessor: Accessor<A> = () => {
     if (observer != undefined) {
-      link(node, observer);
+      linksGraph.addSub(node, observer);
     }
     return value;
   };
@@ -223,10 +266,7 @@ export function createMemo<A>(fn: () => A): Accessor<A> {
     return result;
   });
   updateFn = () => withOwnerAndObserver(node, () => {
-    while (node.deps != null) {
-      node.deps = unlinkSubs(node.deps);
-    }
-    node.depsTail = null;
+    linksGraph.clearDeps(node);
     return fn();
   });
   let value: A = updateFn();
@@ -237,106 +277,8 @@ export function createMemo<A>(fn: () => A): Accessor<A> {
           observer.pqRank = Math.max(observer.pqRank, node.pqRank + 1);
         }
       }
-      link(node, observer);
+      linksGraph.addSub(node, observer);
     }
     return value;
   };
-}
-
-function unlinkSubs(link: Link): Link | null {
-  const dep = link.dep;
-  const nextDep = link.nextDep;
-  const nextSub = link.nextSub;
-  const prevSub = link.prevSub;
-  if (nextSub !== null) {
-    nextSub.prevSub = prevSub;
-  } else {
-    dep.subsTail = prevSub;
-  }
-  if (prevSub !== null) {
-    prevSub.nextSub = nextSub;
-  } else {
-    dep.subs = nextSub;
-    if (nextSub === null && "fn" in dep) {
-      unwatched(dep);
-    }
-  }
-  return nextDep;
-}
-
-function unwatched(el: Node) {
-  priorityQueue.remove(el);
-  let dep = el.deps;
-  while (dep !== null) {
-    dep = unlinkSubs(dep);
-  }
-  el.deps = null;
-  el.dispose();
-}
-
-// https://github.com/stackblitz/alien-signals/blob/v2.0.3/src/system.ts#L52
-function link(
-  dep: Node,
-  sub: Node,
-) {
-  const prevDep = sub.depsTail;
-  if (prevDep !== null && prevDep.dep === dep) {
-    return;
-  }
-  let nextDep: Link | null = null;
-  const isRecomputing = sub.flags & ReactiveFlags.RecomputingDeps;
-  if (isRecomputing) {
-    nextDep = prevDep !== null ? prevDep.nextDep : sub.deps;
-    if (nextDep !== null && nextDep.dep === dep) {
-      sub.depsTail = nextDep;
-      return;
-    }
-  }
-
-  const prevSub = dep.subsTail;
-  if (
-    prevSub !== null &&
-    prevSub.sub === sub &&
-    (!isRecomputing || isValidLink(prevSub, sub))
-  ) {
-    return;
-  }
-  const newLink =
-    (sub.depsTail =
-      dep.subsTail =
-      {
-        dep,
-        sub,
-        nextDep,
-        prevSub,
-        nextSub: null,
-      });
-  if (prevDep !== null) {
-    prevDep.nextDep = newLink;
-  } else {
-    sub.deps = newLink;
-  }
-  if (prevSub !== null) {
-    prevSub.nextSub = newLink;
-  } else {
-    dep.subs = newLink;
-  }
-}
-
-// https://github.com/stackblitz/alien-signals/blob/v2.0.3/src/system.ts#L284
-function isValidLink(checkLink: Link, sub: Node): boolean {
-  const depsTail = sub.depsTail;
-  if (depsTail !== null) {
-    let link = sub.deps!;
-    do {
-      if (link === checkLink) {
-        return true;
-      }
-      if (link === depsTail) {
-        break;
-      }
-      link = link.nextDep!;
-    } while (link !== null);
-  }
-  return false;
 }

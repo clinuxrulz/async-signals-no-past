@@ -1,67 +1,67 @@
+import { IntrusiveLinkedList } from "./IntrusiveLinkedList";
+
 export interface IntrusiveFallbackHeapElement<A> {
-  inFallbackHeap: boolean,
-  fhPrev: A | null,
-  fhNext: A | null,
+  inFallbackHeap(self: A): boolean;
+  setInFallbackHeap(self: A, x: boolean): void;
+  prev(self: A): A | undefined;
+  setPrev(self: A, x: A | undefined): void;
+  next(self: A): A | undefined;
+  setNext(self: A, x: A | undefined): void;
 }
 
-export class FallbackHeap<A extends IntrusiveFallbackHeapElement<A>> {
-  head: A | null = null;
-  tail: A | null = null;
+export class FallbackHeap<A> {
+  elementImpl: IntrusiveFallbackHeapElement<A>;
+  linkedListImpl: IntrusiveLinkedList<FallbackHeap<A>,A>;
+  head: A | undefined = undefined;
+  tail: A | undefined = undefined;
+
+  constructor(elementImpl: IntrusiveFallbackHeapElement<A>) {
+    this.elementImpl = elementImpl;
+    this.linkedListImpl = new IntrusiveLinkedList<FallbackHeap<A>,A>(
+      {
+        head(self) {
+          return self.head;
+        },
+        setHead(self, x) {
+          self.head = x;
+        },
+        tail(self) {
+          return self.tail;
+        },
+        setTail(self, x) {
+          self.tail = x;
+        },
+      },
+      elementImpl,
+    );
+  }
 
   isEmpty(): boolean {
-    return this.head == null;
+    return this.linkedListImpl.isEmpty(this);
   }
 
   add(a: A) {
-    if (a.inFallbackHeap) {
+    if (this.elementImpl.inFallbackHeap(a)) {
       return;
     }
-    a.inFallbackHeap = true;
-    if (this.head == null) {
-      this.head = this.tail = a;
-      return;
-    }
-    this.tail!.fhNext = a;
-    a.fhPrev = this.tail;
-    this.tail = a;
+    this.elementImpl.setInFallbackHeap(a, true);
+    this.linkedListImpl.add(this, a);
   }
 
   remove(a: A) {
-    if (!a.inFallbackHeap) {
+    if (!this.elementImpl.inFallbackHeap(a)) {
       return;
     }
-    a.inFallbackHeap = false;
-    if (a.fhPrev == null) {
-      this.head = this.head!.fhNext;
-      if (this.head != null) {
-        this.head.fhPrev = null;
-      }
-    } else {
-      a.fhPrev.fhNext = a.fhNext;
-    }
-    if (a.fhNext == null) {
-      this.tail = this.tail!.fhPrev;
-      if (this.tail != null) {
-        this.tail.fhNext = null;
-      }
-    }
-    a.fhPrev = a.fhNext = null;
+    this.elementImpl.setInFallbackHeap(a, false);
+    this.linkedListImpl.remove(this, a);
   }
 
   pop(): A | undefined {
-    if (this.head == null) {
+    let result = this.linkedListImpl.pop(this);
+    if (result == undefined) {
       return undefined;
     }
-    let result = this.head;
-    this.head = this.head.fhNext;
-    if (this.head == null) {
-      this.tail = null;
-    } else {
-      this.head.fhPrev = null;
-    }
-    result.fhPrev = null;
-    result.fhNext = null;
+    this.elementImpl.setInFallbackHeap(result, false);
     return result;
   }
 }
-

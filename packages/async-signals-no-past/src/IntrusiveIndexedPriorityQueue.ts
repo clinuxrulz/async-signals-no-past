@@ -1,58 +1,56 @@
-// For checking that I have not lost my marbles
-const SANITY_CHECKS = false;
+import { IntrusiveLinkedList } from "./IntrusiveLinkedList";
 
 export const EFFECT_QUEUE_RANK = "EffectQueue";
 
 export type PqRank = number | (typeof EFFECT_QUEUE_RANK);
 
-export type InstrusivePriorityQueueElement<A> = {
-  pqRank: PqRank,
-  inPq: boolean,
-  pqPrev: A | null,
-  pqNext: A | null,
+export interface InstrusivePriorityQueueElement<A> {
+  pqRank(self: A): PqRank;
+  setPqRank(self: A, x: PqRank): void;
+  inPq(self: A): boolean;
+  setInPq(self: A, x: boolean): void;
+  prev(self: A): A | undefined;
+  setPrev(self: A, x: A | undefined): void;
+  next(self: A): A | undefined;
+  setNext(self: A, x: A | undefined): void;
 };
 
-export class IntrusiveIndexedPriorityQueue<
-  A extends InstrusivePriorityQueueElement<A>
-> {
+export class IntrusiveIndexedPriorityQueue<A> {
+  private elementImpl: InstrusivePriorityQueueElement<A>;
+  private linkedListImpl: IntrusiveLinkedList<{ head: A | undefined, tail: A | undefined, }, A>;
   private entries: {
-    head: A | null,
-    tail: A | null,
-  }[] = new Array(1000).fill(undefined).map((_) => ({ head: null, tail: null, }));
+    head: A | undefined,
+    tail: A | undefined,
+  }[] = new Array(1000).fill(undefined).map((_) => ({ head: undefined, tail: undefined, }));
   private last: {
-    head: A | null,
-    tail: A | null,
+    head: A | undefined,
+    tail: A | undefined,
   } = {
-    head: null,
-    tail: null,
+    head: undefined,
+    tail: undefined,
   };
   private minRank: number = 0;
   maxRank: number = -1;
 
-  private checkQueue() {
-    for (let i = 0; i < this.entries.length; ++i) {
-      let expectedPqRank = i;
-      let e = this.entries[i];
-      if (e == undefined) {
-        continue;
-      }
-      if (e.head != null && e.head.pqPrev != null) {
-        throw new Error("PQ");
-      }
-      if (e.tail != null && e.tail.pqNext != null) {
-        throw new Error("PQ");
-      }
-      let at = e.head;
-      while (at != null) {
-        if (at.pqRank !== expectedPqRank) {
-          throw new Error("PQ");
-        }
-        if (!at.inPq) {
-          throw new Error("PQ");
-        }
-        at = at.pqNext;
-      }
-    }
+  constructor(elementImpl: InstrusivePriorityQueueElement<A>) {
+    this.elementImpl = elementImpl;
+    this.linkedListImpl = new IntrusiveLinkedList<{ head: A | undefined, tail: A | undefined }, A>(
+      {
+        head(self) {
+          return self.head;
+        },
+        setHead(self, x) {
+          self.head = x;
+        },
+        tail(self) {
+          return self.tail;
+        },
+        setTail(self, x) {
+          self.tail = x;
+        },
+      },
+      elementImpl,
+    );
   }
 
   isEmpty(): boolean {
@@ -65,48 +63,34 @@ export class IntrusiveIndexedPriorityQueue<
   }
 
   enqueue(a: A) {
-    if (a.inPq) {
+    if (this.elementImpl.inPq(a)) {
       return;
     }
-    a.inPq = true;
+    this.elementImpl.setInPq(a, true);
     let entry: {
-      head: A | null,
-      tail: A | null,
+      head: A | undefined,
+      tail: A | undefined,
     };
-    if (a.pqRank == EFFECT_QUEUE_RANK) {
+    let aPqRank = this.elementImpl.pqRank(a);
+    if (aPqRank == EFFECT_QUEUE_RANK) {
       entry = this.last;
     } else {
-      if (a.pqRank < this.minRank) {
-        this.minRank = a.pqRank;
+      if (aPqRank < this.minRank) {
+        this.minRank = aPqRank;
       }
-      if (a.pqRank > this.maxRank) {
-        this.maxRank = a.pqRank;
+      if (aPqRank > this.maxRank) {
+        this.maxRank = aPqRank;
       }
-      entry = this.entries[a.pqRank];
+      entry = this.entries[aPqRank];
       if (entry == undefined) {
-        this.entries[a.pqRank] = {
+        this.entries[aPqRank] = {
           head: a,
           tail: a,
         };
-        if (SANITY_CHECKS) {
-          this.checkQueue();
-        }
         return;
       }
     }
-    if (entry.head == null) {
-      entry.head = entry.tail = a;
-      if (SANITY_CHECKS) {
-        this.checkQueue();
-      }
-      return;
-    }
-    entry.tail!.pqNext = a;
-    a.pqPrev = entry.tail!;
-    entry.tail = a;
-    if (SANITY_CHECKS) {
-      this.checkQueue();
-    }
+    this.linkedListImpl.add(entry, a);
   }
 
   dequeue(): A | undefined {
@@ -118,9 +102,6 @@ export class IntrusiveIndexedPriorityQueue<
           let result = this.last.head;
           this.remove(result);
           return result;
-        }
-        if (SANITY_CHECKS) {
-          this.checkQueue();
         }
         return undefined;
       }
@@ -144,75 +125,31 @@ export class IntrusiveIndexedPriorityQueue<
         }
         break;
       }
-      if (SANITY_CHECKS) {
-        // sanity check, find it there is something else with a smaller rank
-        for (let entry of this.entries) {
-          if (entry != undefined) {
-            let at = entry.head;
-            while (at != null) {
-              if (at.pqRank < result.pqRank) {
-                throw new Error("priority queue failed");
-              }
-              at = at.pqNext;
-            }
-          }
-        }
-        this.checkQueue();
-      }
       return result;
     }
   }
 
   remove(a: A) {
-    if (!a.inPq) {
+    if (!this.elementImpl.inPq(a)) {
       return;
     }
-    a.inPq = false;
+    this.elementImpl.setInPq(a, false);
     let entry: {
-      head: A | null,
-      tail: A | null,
+      head: A | undefined,
+      tail: A | undefined,
     };
-    if (a.pqRank == EFFECT_QUEUE_RANK) {
+    let aPqRank = this.elementImpl.pqRank(a);
+    if (aPqRank == EFFECT_QUEUE_RANK) {
       entry = this.last;
     } else {
-      entry = this.entries[a.pqRank];
+      entry = this.entries[aPqRank];
     }
-    if (a.pqPrev !== null) {
-      a.pqPrev.pqNext = a.pqNext;
-    }
-    if (a.pqNext !== null) {
-      a.pqNext.pqPrev = a.pqPrev;
-    }
-    if (entry.head == a) {
-      entry.head = entry.head.pqNext;
-    }
-    if (entry.tail == a) {
-      entry.tail = entry.tail.pqPrev;
-    }
-    if (entry.head == null) {
-      entry.tail = null;
-    }
-    a.pqNext = null;
-    a.pqPrev = null;
-    if (SANITY_CHECKS) {
-      this.checkQueue();
-      // sanity check
-      {
-        let at = entry.head;
-        while (at != null) {
-          if (!at.inPq) {
-            throw new Error("PQ");
-          }
-          at = at.pqNext;
-        }
-      }
-      //
-    }
+    this.linkedListImpl.remove(entry, a);
   }
 
   changeRank(a: A, newRank: number) {
     this.remove(a);
-    a.pqRank = newRank;
+    this.elementImpl.setPqRank(a, newRank);
     this.enqueue(a);
   }
 }

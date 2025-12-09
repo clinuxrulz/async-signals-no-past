@@ -108,6 +108,16 @@ export class IntrusiveLinksGraph<N> {
     );
   }
 
+  clearDeps(node: N) {
+    while (true) {
+      let link = this.nodeImpl.deps.head(node);
+      if (link == undefined) {
+        break;
+      }
+      this.removeLink(link);
+    }
+  }
+
   addSub(dep: N, sub: N) {
     let link = this.linksPool.alloc();
     link.dep = dep;
