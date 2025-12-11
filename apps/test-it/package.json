@@ -2,11 +2,11 @@
   "name": "test-id",
   "version": "1.0.0",
   "description": "",
-  "main": "index.html",
+  "type": "module",
   "scripts": {
-    "start": "vite",
-    "dev": "vite",
-    "build": "vite build",
+    "start": "vite-node ./src/index.ts",
+    "dev": "vite-node ./src/index.ts",
+    "build": "vite-node build",
     "check-types": "tsc --noEmit"
   },
   "keywords": [],
@@ -15,7 +15,7 @@
   "packageManager": "pnpm@10.9.0",
   "devDependencies": {
     "typescript": "^5.9.3",
-    "vite": "^7.2.2"
+    "vite-node": "^5.2.0"
   },
   "dependencies": {
     "async-signals-no-past": "workspace:*"
