@@ -1,23 +1,76 @@
-import { createSignal, createMemo, } from "async-signals-no-past";
+import { createSignal, createMemo, createAsync, Accessor, NotReadyYet, } from "async-signals-no-past";
 
-let [ a, setA, ] = createSignal(1);
+async function test1() {
+  let onDone: () => void = () => {};
+  let onDonePromise = new Promise<void>((resolve) => onDone = resolve);
 
-let b = createMemo(() => a() * 2);
+  let [ a, setA, ] = createSignal(1);
 
-console.log("test no past");
-console.log(a(), b());
-setA(2);
-console.log(a(), b());
-setA(3);
-console.log(a(), b());
+  let b = createMemo(() => a() * 2);
 
-console.log();
-setA(1);
-console.log("normal use");
-setTimeout(() => {
-  createMemo(() => {
-    console.log(a(), b());
+  console.log("test no past");
+  console.log(a(), b());
+  setA(2);
+  console.log(a(), b());
+  setA(3);
+  console.log(a(), b());
+
+  console.log();
+  setA(1);
+  console.log("normal use");
+  setTimeout(() => {
+    createMemo(() => {
+      console.log(a(), b());
+    });
+    setTimeout(() => setA(2));
+    setTimeout(() => {
+      setA(3);
+      onDone();
+    });
   });
-  setTimeout(() => setA(2));
-  setTimeout(() => setA(3));
-});
+  return onDonePromise;
+}
+
+async function test2() {
+  let onDone: () => void = () => {};
+  let onDonePromise = new Promise<void>((resolve) => onDone = resolve);
+
+  console.log("test async");
+  let a = createAsync(new Promise<number>((resolve) => {
+    setTimeout(
+      () => {
+        resolve(42);
+      },
+      3000
+    );
+  }));
+
+  let read = <A>(a: Accessor<A>): { type: "Pending", } | { type: "Success", value: A } | { type: "Error", error: any, } => {
+    try {
+      return {
+        type: "Success",
+        value: a(),
+      };
+    } catch (e) {
+      if (e instanceof NotReadyYet) {
+        return { type: "Pending", };
+      } else {
+        return { type: "Error", error: e, };
+      }
+    }
+  };
+
+  createMemo(() => {
+    console.log(read(a));
+  });
+  
+  return onDonePromise;
+}
+
+console.log("------ Running test1 ------");
+await test1();
+console.log();
+
+console.log("------ Running test2 ------");
+await test2();
+console.log();

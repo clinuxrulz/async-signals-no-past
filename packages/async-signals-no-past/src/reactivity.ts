@@ -8,6 +8,12 @@ const enum ReactiveFlags {
   Dirty = 1 << 1,
   InHeap = 1 << 2,
   InFallbackHeap = 1 << 3,
+  Pending = 1 << 4,
+  Errored = 1 << 5,
+}
+
+export class NotReadyYet {
+  static instance = new NotReadyYet();
 }
 
 export enum NodeUpdateResult {
@@ -286,6 +292,40 @@ export function createMemo<A>(fn: () => A): Accessor<A> {
   });
   let value: A = updateFn();
   return makeAccessor(node, () => value);
+}
+
+export function createAsync<A>(a: Promise<A>): Accessor<A> {
+  let value: A | undefined = undefined;
+  let error: any = undefined;
+  let changedState = false;
+  a
+    .then((value2) => {
+      value = value2;
+      node.flags &= ~ReactiveFlags.Pending;
+      changedState = true;
+      priorityQueue.enqueue(node);
+      requestFlush();
+    })
+    .catch((error2) => {
+      error = error2;
+      node.flags |= ReactiveFlags.Errored;
+      changedState = true;
+      priorityQueue.enqueue(node);
+      requestFlush();
+    });
+  let node = new Node(() => {
+    return changedState ? NodeUpdateResult.FIRE : NodeUpdateResult.SEIZE_FIRE;
+  });
+  node.flags |= ReactiveFlags.Pending;
+  return makeAccessor(node, () => {
+    if (node.flags & ReactiveFlags.Pending) {
+      throw NotReadyYet.instance;
+    }
+    if (node.flags & ReactiveFlags.Errored) {
+      throw error;
+    }
+    return value as A;
+  });
 }
 
 function recompute(node: Node) {
