@@ -6,9 +6,8 @@ const enum ReactiveFlags {
   None = 0,
   Check = 1 << 0,
   Dirty = 1 << 1,
-  RecomputingDeps = 1 << 2,
-  InHeap = 1 << 3,
-  InFallbackHeap = 1 << 4,
+  InHeap = 1 << 2,
+  InFallbackHeap = 1 << 3,
 }
 
 export enum NodeUpdateResult {
