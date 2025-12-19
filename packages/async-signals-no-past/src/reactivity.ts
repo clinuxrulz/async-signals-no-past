@@ -279,10 +279,25 @@ function propergateCheckFlags(node: Node) {
 }
 
 export function createMemo<A>(fn: () => A): Accessor<A> {
+  let value: A | undefined = undefined;
+  let error: any = undefined;
   let updateFn: () => A;
-  let node = new Node(() => {
-    let newValue = updateFn();
-    let result = (newValue === value) ? NodeUpdateResult.SEIZE_FIRE : NodeUpdateResult.FIRE;
+  let node: Node = new Node(() => {
+    let newValue: A | undefined = undefined;
+    let result: NodeUpdateResult;
+    try {
+      newValue = updateFn();
+      node.flags &= ~(ReactiveFlags.Pending | ReactiveFlags.Errored);
+      result = (newValue === value) ? NodeUpdateResult.SEIZE_FIRE : NodeUpdateResult.FIRE;
+    } catch (e) {
+      if (e instanceof NotReadyYet) {
+        result = (node.flags & ~ReactiveFlags.Pending) ? NodeUpdateResult.FIRE : NodeUpdateResult.SEIZE_FIRE;
+        node.flags = (node.flags & ~ReactiveFlags.Errored) | ReactiveFlags.Pending;
+      } else {
+        node.flags = (node.flags & ~ReactiveFlags.Pending) | ReactiveFlags.Errored;
+        result = NodeUpdateResult.FIRE;
+      }
+    }
     value = newValue;
     return result;
   });
@@ -290,8 +305,25 @@ export function createMemo<A>(fn: () => A): Accessor<A> {
     linksGraph.clearDeps(node);
     return fn();
   });
-  let value: A = updateFn();
-  return makeAccessor(node, () => value);
+  try {
+    value = updateFn();
+  } catch (e) {
+    if (e instanceof NotReadyYet) {
+      node.flags |= ReactiveFlags.Pending;
+    } else {
+      node.flags |= ReactiveFlags.Errored;
+      error = e;
+    }
+  }
+  return makeAccessor(node, () => {
+    if (node.flags & ReactiveFlags.Pending) {
+      throw NotReadyYet.instance;
+    }
+    if (node.flags & ReactiveFlags.Errored) {
+      throw error;
+    }
+    return value as A;
+  });
 }
 
 export function createAsync<A>(a: Promise<A>): Accessor<A> {
