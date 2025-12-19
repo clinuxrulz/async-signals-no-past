@@ -171,7 +171,7 @@ function withOwner<A>(innerOwner: Node, k: () => A): A {
   return result;
 }
 
-function withObserver<A>(innerObserver: Node, k: () => A): A {
+function withObserver<A>(innerObserver: Node | undefined, k: () => A): A {
   let outerObserver = observer;
   let result: A;
   try {
@@ -234,6 +234,10 @@ function flush() {
     }
     node.flags &= ~(ReactiveFlags.Check | ReactiveFlags.Dirty);
   }
+}
+
+export function untrack<A>(k: () => A): A {
+  return withObserver(undefined, k);
 }
 
 export function createSignal<A>(a: A): Signal<A> {
@@ -304,64 +308,20 @@ function recompute(node: Node) {
 }
 
 function updateIfNecessary(el: Node): void {
-  const linkStack: Link<Node>[] = [];
-  const computeStack: Node[] = [];
-  let link = el.deps ?? undefined;
-  let node: Node | undefined;
-  while (link) {
-    while (link) {
-      node = link.dep;
-      const next: Link<Node> | undefined = link.nextDep ?? undefined;
-      if (
-        typeof atRank == "number" &&
-        typeof node.pqRank == "number" &&
-        node.pqRank < atRank ||
-        node.flags & (ReactiveFlags.RecomputingDeps | ReactiveFlags.InFallbackHeap)
-      ) {
-        link = next;
-        continue;
-      }
-      if (node.flags & (ReactiveFlags.Dirty | ReactiveFlags.InHeap)) {
-        if (node.inPq && !node.inFallbackHeap) {
-          priorityQueue.remove(node);
-          fallbackHeap.add(node);
-        }
-        recompute(node);
-        link = next;
-        continue;
-      }
-      if (node.inPq && !node.inFallbackHeap) {
-        priorityQueue.remove(node);
-        fallbackHeap.add(node);
-      }
-      computeStack.push(node);
-      if (node.deps) {
-        link = node.deps;
-        if (next) {
-          linkStack.push(next);
-        }
-        continue;
-      }
-      link = next;
-    }
-    link = linkStack.pop();
-    for (let i = computeStack.length - 1; i >= 0; i--) {
-      const node = computeStack[i]!;
-      if (node.flags & (ReactiveFlags.Dirty | ReactiveFlags.InHeap)) {
-        priorityQueue.remove(el);
-        recompute(node);
-      } else {
-        el.flags &= ReactiveFlags.InHeap | ReactiveFlags.InFallbackHeap;
+  priorityQueue.remove(el);
+  if (el.flags & ReactiveFlags.Check) {
+    for (let d = el.deps; d; d = d.nextDep) {
+      const dep = d.dep;
+      updateIfNecessary(dep);
+      if (el.flags & ReactiveFlags.Dirty) {
+        break;
       }
     }
-    computeStack.length = 0;
   }
-  if (el.flags & (ReactiveFlags.Dirty | ReactiveFlags.InHeap)) {
-    priorityQueue.remove(el);
+  if (el.flags & ReactiveFlags.Dirty) {
     recompute(el);
-  } else {
-    el.flags &= ReactiveFlags.InHeap | ReactiveFlags.InFallbackHeap;
   }
+  el.flags &= ~(ReactiveFlags.Dirty | ReactiveFlags.Check);
 }
 
 function makeAccessor<A>(node: Node, readValue: () => A): Accessor<A> {
@@ -369,16 +329,7 @@ function makeAccessor<A>(node: Node, readValue: () => A): Accessor<A> {
     if (observer != undefined) {
       linksGraph.addSub(node, observer);
     }
-    if (node.flags & (ReactiveFlags.Dirty | ReactiveFlags.InHeap)) {
-      priorityQueue.remove(node);
-      recompute(node);
-    } else if (
-      typeof atRank == "number" &&
-      typeof node.pqRank == "number" &&
-      node.pqRank > atRank || ((node.flags & ReactiveFlags.Check) != 0) || atRank == undefined
-    ) {
-      updateIfNecessary(node);
-    }
+    updateIfNecessary(node);
     if (observer != undefined) {
       if (typeof observer.pqRank == "number") {
         if (typeof node.pqRank == "number") {
@@ -392,6 +343,8 @@ function makeAccessor<A>(node: Node, readValue: () => A): Accessor<A> {
           }
         }
       }
+    } else if (!node.inFallbackHeap) {
+      fallbackHeap.add(node);
     }
     return readValue();
   };
