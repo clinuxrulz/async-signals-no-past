@@ -6,6 +6,7 @@ export {
   createRoot,
   createMemo,
   createSignal,
+  isPending,
   NotReadyYet,
   onCleanup,
 } from "./reactivity";

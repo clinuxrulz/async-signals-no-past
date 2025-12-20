@@ -408,6 +408,20 @@ export function createEffect<A>(
   });
 }
 
+export function isPending<A>(k: () => A): Accessor<boolean> {
+  return createMemo(() => {
+    try {
+      k();
+      return false;
+    } catch (e) {
+      if (e instanceof NotReadyYet) {
+        return true;
+      }
+      return false;
+    }
+  });
+}
+
 function removeNode(node: Node) {
   node.dispose();
   for (let dep = node.deps; dep != undefined; dep = dep.nextDep) {
