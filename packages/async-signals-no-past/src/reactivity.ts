@@ -49,6 +49,7 @@ export class Node {
     }
   }
 
+  parent: Node | undefined = undefined;
   prev: Node | undefined = undefined;
   next: Node | undefined = undefined;
   subs: Link<Node> | undefined = undefined;
@@ -164,7 +165,7 @@ export let owner: Node | undefined = undefined;
 export let observer: Node | undefined = undefined;
 export let atRank: PqRank | undefined = undefined;
 
-function withOwner<A>(innerOwner: Node, k: () => A): A {
+function withOwner<A>(innerOwner: Node | undefined, k: () => A): A {
   let outerOwner = owner;
   let result: A;
   try {
@@ -245,6 +246,11 @@ export function untrack<A>(k: () => A): A {
   return withObserver(undefined, k);
 }
 
+export function createRoot<A>(k: (dispose: () => void) => A): A {
+  let node = new Node(() => NodeUpdateResult.SEIZE_FIRE);
+  return withOwner(node, () => k(() => removeNode(node)));
+}
+
 export function createSignal<A>(a: A): Signal<A> {
   let value: A = a;
   let node = new Node(() => NodeUpdateResult.FIRE);
@@ -305,6 +311,12 @@ export function createMemo<A>(fn: () => A): Accessor<A> {
     linksGraph.clearDeps(node);
     return fn();
   });
+  if (owner != undefined) {
+    node.parent = owner;
+    linksGraph.addSub(owner, node);
+  } else {
+    console.warn("createMemo outside of a root will not be disposed.");
+  }
   try {
     value = updateFn();
   } catch (e) {
@@ -358,6 +370,20 @@ export function createAsync<A>(a: Promise<A>): Accessor<A> {
     }
     return value as A;
   });
+}
+
+function removeNode(node: Node) {
+  node.dispose();
+  for (let dep = node.deps; dep != undefined; dep = dep.nextDep) {
+    linksGraph.removeLink(dep);
+  }
+  for (let sub = node.subs; sub != undefined; sub = sub.nextSub) {
+    let sub2 = sub.sub;
+    linksGraph.removeLink(sub);
+    if (sub2.parent == node) {
+      removeNode(sub2);
+    }
+  }
 }
 
 function recompute(node: Node) {

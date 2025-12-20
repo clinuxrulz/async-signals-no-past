@@ -61,7 +61,11 @@ async function test2() {
   };
 
   createMemo(() => {
-    console.log(read(a));
+    let val = read(a);
+    console.log(val);
+    if (val.type != "Pending") {
+      onDone();
+    }
   });
   
   return onDonePromise;
