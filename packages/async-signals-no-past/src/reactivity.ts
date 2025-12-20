@@ -238,6 +238,7 @@ function flush() {
     if (node == undefined) {
       break;
     }
+    updateIfNecessary(node);
     node.flags &= ~(ReactiveFlags.Check | ReactiveFlags.Dirty);
   }
 }
