@@ -1,4 +1,4 @@
-import { createSignal, createMemo, createAsync, Accessor, NotReadyYet, createRoot, } from "async-signals-no-past";
+import { createSignal, createMemo, createAsync, Accessor, NotReadyYet, createRoot, onCleanup, } from "async-signals-no-past";
 
 async function test1() {
   return createRoot((dispose) => {

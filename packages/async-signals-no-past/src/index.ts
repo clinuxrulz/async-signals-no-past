@@ -5,4 +5,5 @@ export {
   createMemo,
   createSignal,
   NotReadyYet,
+  onCleanup,
 } from "./reactivity";

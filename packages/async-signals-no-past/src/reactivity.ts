@@ -372,6 +372,20 @@ export function createAsync<A>(a: Promise<A>): Accessor<A> {
   });
 }
 
+export function onCleanup(k: () => void) {
+  if (owner == undefined) {
+    console.warn("onCleanup outside an owner never gets executed.");
+    return;
+  }
+  if (owner.disposal == undefined) {
+    owner.disposal = k;
+  } else if (owner.disposal instanceof Function) {
+    owner.disposal = [ owner.disposal, k, ];
+  } else {
+    owner.disposal.push(k);
+  }
+}
+
 function removeNode(node: Node) {
   node.dispose();
   for (let dep = node.deps; dep != undefined; dep = dep.nextDep) {
