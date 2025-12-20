@@ -1,4 +1,4 @@
-import { createSignal, createMemo, createAsync, Accessor, NotReadyYet, createRoot, onCleanup, } from "async-signals-no-past";
+import { createSignal, createMemo, createAsync, Accessor, NotReadyYet, createRoot, onCleanup, createEffect, } from "async-signals-no-past";
 
 async function test1() {
   return createRoot((dispose) => {
@@ -92,3 +92,25 @@ console.log();
 console.log("------ Running test2 ------");
 await test2();
 console.log();
+
+console.log("------ Running test3 ------");
+createRoot((dispose) => {
+  let [ a, setA, ] = createSignal(1);
+  let [ b, setB, ] = createSignal(2);
+  let c = createMemo(() => a() + b());
+  createEffect(
+    () => [a(), b(), c()],
+    ([a, b, c]) => {
+      console.log(`${a} + ${b} = ${c}`);
+    },
+  );
+  setTimeout(() => {
+    setA(3);
+    setB(4);
+    setTimeout(() => {
+      setA(5);
+      setB(6);
+      setTimeout(() => dispose());
+    });
+  });
+});

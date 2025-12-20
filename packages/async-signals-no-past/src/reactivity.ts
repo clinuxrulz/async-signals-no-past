@@ -284,6 +284,10 @@ function propergateCheckFlags(node: Node) {
   }
 }
 
+export function createComputed(fn: () => void) {
+  createMemo(fn);
+}
+
 export function createMemo<A>(fn: () => A): Accessor<A> {
   let value: A | undefined = undefined;
   let error: any = undefined;
@@ -384,6 +388,23 @@ export function onCleanup(k: () => void) {
   } else {
     owner.disposal.push(k);
   }
+}
+
+export function createEffect<A>(
+  pureFn: () => A,
+  effectFn: (a: A) => void,
+) {
+  let a: A | undefined = undefined;
+  let node = new Node(() => {
+    effectFn(a!);
+    return NodeUpdateResult.SEIZE_FIRE;
+  });
+  node.pqRank = "EffectQueue";
+  createMemo(() => {
+    a = pureFn();
+    priorityQueue.enqueue(node);
+    requestFlush();
+  });
 }
 
 function removeNode(node: Node) {
