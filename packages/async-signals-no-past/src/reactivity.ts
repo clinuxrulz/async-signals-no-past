@@ -422,6 +422,26 @@ export function isPending<A>(k: () => A): Accessor<boolean> {
   });
 }
 
+export function pending<A>(k: () => A): Accessor<A> {
+  let lastSeen: A | undefined = undefined;
+  let hasLastSeen = false;
+  return createMemo(() => {
+    try {
+      lastSeen = k();
+      hasLastSeen = true;
+      return lastSeen;
+    } catch (e) {
+      if (e instanceof NotReadyYet) {
+        if (hasLastSeen) {
+          return lastSeen!;
+        }
+        throw NotReadyYet;
+      }
+      throw e;
+    }
+  });
+}
+
 function removeNode(node: Node) {
   node.dispose();
   for (let dep = node.deps; dep != undefined; dep = dep.nextDep) {

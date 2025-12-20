@@ -9,4 +9,5 @@ export {
   isPending,
   NotReadyYet,
   onCleanup,
+  pending,
 } from "./reactivity";
