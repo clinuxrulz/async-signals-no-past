@@ -423,11 +423,19 @@ function removeNode(node: Node) {
 }
 
 function recompute(node: Node) {
-  node.dispose();
+  let lastDisposal = node.disposal;
   for (let dep = node.deps; dep != undefined; dep = dep.nextDep) {
     linksGraph.removeLink(dep);
   }
   let updateResult = node.update();
+  // do not run dispose yet if the node is in pending stage
+  if (!(node.flags & ReactiveFlags.Pending)) {
+    let nextDisposal = node.disposal;
+    node.disposal = lastDisposal;
+    node.dispose();
+    node.disposal = nextDisposal;
+  }
+  //
   if (updateResult == NodeUpdateResult.FIRE) {
     for (let sub = node.subs; sub != undefined; sub = sub.nextSub) {
       let sub2 = sub.sub;

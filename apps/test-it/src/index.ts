@@ -74,6 +74,7 @@ async function test2() {
     };
 
     createMemo(() => {
+      onCleanup(() => console.log("memo cleanup called"));
       let val = read(a);
       console.log(val);
       if (val.type != "Pending") {
