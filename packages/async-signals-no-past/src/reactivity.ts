@@ -396,7 +396,7 @@ export function createEffect<A>(
 ) {
   let a: A | undefined = undefined;
   let node = new Node(() => {
-    effectFn(a!);
+    withOwner(node, () => untrack(() => effectFn(a!)));
     return NodeUpdateResult.SEIZE_FIRE;
   });
   node.pqRank = "EffectQueue";
