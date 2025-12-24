@@ -10,4 +10,5 @@ export {
   NotReadyYet,
   onCleanup,
   pending,
+  untrack,
 } from "./reactivity";
