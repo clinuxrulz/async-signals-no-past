@@ -1,5 +1,6 @@
 import { createRoot, createSignal } from "async-signals-no-past";
 import Child from "./Child";
+import ChildWithLoading from "./ChildWithLoading";
 
 let [ count, setCount, ] = createSignal(0);
 let x = 0;
@@ -8,7 +9,7 @@ window.setInterval(() => setCount(x++), 200);
 let app = document.getElementById("app")!;
 let dispose = createRoot((dispose) => {
   app.appendChild(
-    Child({
+    ChildWithLoading({
       page: "Uno",
       get count() {
         return count();

@@ -1,5 +1,5 @@
 import { createAsync, createEffect, createMemo, isPending, untrack } from "async-signals-no-past";
-import { template } from "./util";
+import { makeIsPending$, renderEffect$, template } from "./util";
 
 const CONTENT = {
   Uno: `Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`,
@@ -43,10 +43,14 @@ const Child = (props: { page: "Uno" | "Dos" | "Tres"; count: number }) => {
   el1.appendChild(el9);
   el2.appendChild(el3);
   el9.appendChild(el10);
-  let anyPending = isPending(() => props.count && props.page && time());
   createEffect(
     () => {},
     () => untrack(() => {
+      renderEffect$(() => props.count, (count) => el3.textContent = count.toString());
+      renderEffect$(() => props.page, (page) => el5.textContent = page);
+      renderEffect$(() => time().toFixed(), (time) => el7.textContent = time);
+      renderEffect$(() => CONTENT[props.page], (content) => el10.textContent = content);
+      let anyPending = makeIsPending$();
       createEffect(anyPending, (anyPending) => {
         if (anyPending) {
           el1.style.setProperty("display", "none");
@@ -54,10 +58,6 @@ const Child = (props: { page: "Uno" | "Dos" | "Tres"; count: number }) => {
           el1.style.setProperty("display", "block");
         }
       });
-      createEffect(() => props.count, (count) => el3.textContent = count.toString());
-      createEffect(() => props.page, (page) => el5.textContent = page);
-      createEffect(() => time().toFixed(), (time) => el7.textContent = time);
-      createEffect(() => CONTENT[props.page], (content) => el10.textContent = content);
     })
   );
   return el1;
